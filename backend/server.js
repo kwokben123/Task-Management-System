@@ -31,7 +31,7 @@ function isValidDate(dateString) {
   return !isNaN(date.getTime());
 }
 
-function validateTaskInput(name, assignee, dueDate, status) {
+function isValidTaskInput(name, assignee, dueDate, status) {
   return name && assignee && dueDate && status && statusCodes.includes(status) && isValidDate(dueDate);
 }
 
@@ -39,7 +39,7 @@ function validateTaskInput(name, assignee, dueDate, status) {
 app.get("/tasks", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM tasks");
-    res.json(rows);
+    res.status(200).json(rows);
   } catch (err) {
     res.status(500).json({ error: err });
   }
@@ -48,7 +48,7 @@ app.get("/tasks", async (req, res) => {
 // Create a new task
 app.post("/tasks", async (req, res) => {
   const { name, assignee, dueDate, status } = req.body;
-  if (!validateTaskInput(name, assignee, dueDate, status)) {
+  if (!isValidTaskInput(name, assignee, dueDate, status)) {
     return res.status(400).json({ error: "Invalid input" });
   }
   try {
@@ -56,8 +56,13 @@ app.post("/tasks", async (req, res) => {
       "INSERT INTO tasks (name, assignee, dueDate, status) VALUES (?, ?, ?, ?)",
       [name, assignee, dueDate, status]
     );
-    const [rows] = await pool.query("SELECT * FROM tasks WHERE id = ?", [result.insertId]);
-    res.status(201).json(rows[0]);
+    res.status(201).json({
+      id: result.insertId,
+      name,
+      assignee,
+      dueDate,
+      status
+    });
   } catch (err) {
     res.status(500).json({ error: err });
   }
@@ -66,7 +71,7 @@ app.post("/tasks", async (req, res) => {
 // Update a task
 app.put("/tasks/:id", async (req, res) => {
   const { name, assignee, dueDate, status } = req.body;
-  if (!validateTaskInput(name, assignee, dueDate, status)) {
+  if (!isValidTaskInput(name, assignee, dueDate, status)) {
     return res.status(400).json({ error: "Invalid input" });
   }
   try {
@@ -77,8 +82,13 @@ app.put("/tasks/:id", async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Task not found" });
     }
-    const [rows] = await pool.query("SELECT * FROM tasks WHERE id = ?", [req.params.id]);
-    res.json(rows[0]);
+    res.status(200).json({
+      id: req.params.id,
+      name,
+      assignee,
+      dueDate,
+      status
+    });
   } catch (err) {
     res.status(500).json({ error: err });
   }
@@ -88,8 +98,10 @@ app.put("/tasks/:id", async (req, res) => {
 app.delete("/tasks/:id", async (req, res) => {
   try {
     const [result] = await pool.query("DELETE FROM tasks WHERE id = ?", [req.params.id]);
-    if (result.affectedRows === 0) return res.status(404).json({ error: "Task not found" });
-    res.json({ success: true });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+    res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: err });
   }
